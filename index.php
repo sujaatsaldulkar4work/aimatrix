@@ -280,6 +280,11 @@ $tools = $stmt->fetchAll(PDO::FETCH_ASSOC);
                 <button class="modal__close" id="closeFeedbackModal">×</button>
             </div>
             <div class="modal__body">
+                <div id="reviewsContainer">
+
+</div>
+
+<hr>
                 <form id="feedbackForm">
                     <div class="form-group">
                         <label class="form-label">Rating</label>

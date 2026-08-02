@@ -233,9 +233,11 @@ ${tool.description}
 
 <div class="tool-card__footer">
 
-<div>
+<div
+class="tool-rating"
+id="rating-${tool.id}">
 
-⭐ ${tool.rating}
+⭐ 0 (0)
 
 </div>
 
@@ -284,6 +286,7 @@ ${tool.pricing}
 `;
 
         container.appendChild(card);
+        loadToolRating(tool.id);
 
     });
 
@@ -294,6 +297,103 @@ ${tool.pricing}
 
         resultsCount.textContent =
             toolsToRender.length + " tools found";
+
+    }
+
+}
+async function loadToolRating(toolId){
+
+    try{
+
+        const response = await fetch(
+            "/aimatrix/api/get_feedback.php?tool_id="+toolId
+        );
+
+        const result = await response.json();
+
+        if(!result.success) return;
+
+        const rating =
+        document.getElementById(
+            "rating-"+toolId
+        );
+
+        if(rating){
+
+            rating.innerHTML =
+
+            `⭐ ${result.average_rating}
+             (${result.total_reviews})`;
+
+        }
+
+    }
+
+    catch(error){
+
+        console.error(error);
+
+    }
+
+}
+async function loadReviews(toolId){
+
+    try{
+
+        const response = await fetch(
+            "/aimatrix/api/get_feedback.php?tool_id="+toolId
+        );
+
+        const result = await response.json();
+
+        const container =
+        document.getElementById("reviewsContainer");
+
+        if(!container) return;
+
+        if(!result.success){
+
+            container.innerHTML="";
+
+            return;
+
+        }
+
+        let html = `
+        <h3>
+        ⭐ ${result.average_rating}
+        (${result.total_reviews} Reviews)
+        </h3>
+        `;
+
+        result.reviews.forEach(review=>{
+
+            html += `
+            <div style="
+            border-bottom:1px solid #ddd;
+            padding:10px 0;
+            ">
+
+            <strong>${review.name}</strong><br>
+
+            ⭐ ${review.rating}/5
+
+            <p>${review.review}</p>
+
+            <small>${review.created_at}</small>
+
+            </div>
+            `;
+
+        });
+
+        container.innerHTML = html;
+
+    }
+
+    catch(error){
+
+        console.error(error);
 
     }
 
@@ -346,10 +446,12 @@ async function toggleBookmark(toolId){
             method:"POST",
 
             headers:{
-                "Content-Type":"application/x-www-form-urlencoded"
+                "Content-Type":"application/json"
             },
 
-            body:"tool_id="+toolId
+            body: JSON.stringify({
+                tool_id: toolId
+            })
 
         });
 
@@ -357,27 +459,27 @@ async function toggleBookmark(toolId){
 
         if(result.success){
 
-            if(result.action==="added"){
+            if(result.bookmarked){
 
-                bookmarks.push(toolId);
+                if(!bookmarks.includes(toolId)){
+                    bookmarks.push(toolId);
+                }
 
             }else{
 
-                bookmarks = bookmarks.filter(id=>id!=toolId);
+                bookmarks = bookmarks.filter(id => id != toolId);
 
             }
 
             updateBookmarkButtons();
 
             if(currentPage==="bookmarks"){
-
                 loadBookmarksPage();
-
             }
 
         }
 
-        showToast(result.message);
+        showToast(result.message || "Done");
 
     }
 
@@ -390,6 +492,8 @@ async function toggleBookmark(toolId){
     }
 
 }
+
+
 function updateBookmarkButtons(){
 
     document.querySelectorAll(".bookmark-btn").forEach(btn=>{
@@ -475,28 +579,59 @@ function applyFilters() {
     
     renderTools(filteredTools);
 }
+function loadBookmarksPage() {
 
-async function loadBookmarksPage(){
-
-    await loadBookmarks();
-
-    const bookmarkedTools = tools.filter(tool=>bookmarks.includes(tool.id));
+    const bookmarkedTools = tools.filter(tool =>
+        bookmarks.includes(tool.id)
+    );
 
     renderTools(bookmarkedTools);
 
-    const noBookmarks=document.getElementById("noBookmarks");
+    const noBookmarks = document.getElementById("noBookmarks");
 
-    if(noBookmarks){
+    if (noBookmarks) {
 
-        if(bookmarkedTools.length===0){
-
+        if (bookmarkedTools.length === 0) {
             noBookmarks.classList.remove("hidden");
+        } else {
+            noBookmarks.classList.add("hidden");
+        }
+
+    }
+
+}
+
+async function loadBookmarks() {
+
+    try {
+
+        const response = await fetch("/aimatrix/api/get_bookmark.php");
+
+        const result = await response.json();
+
+        if(result.success){
+
+            bookmarks = result.bookmarks;
 
         }else{
 
-            noBookmarks.classList.add("hidden");
+            bookmarks = [];
 
         }
+
+        updateBookmarkButtons();
+
+        if(currentPage === "bookmarks"){
+            loadBookmarksPage();
+        }
+
+    }
+
+    catch(error){
+
+        console.error(error);
+
+        bookmarks = [];
 
     }
 
@@ -616,19 +751,47 @@ function loadCurrentPageData() {
             break;
     }
 }
+async function loadStats(){
 
-function updateStatsDisplay() {
-    const toolStat = document.getElementById("statsTools");
-    const categoryStat = document.getElementById("statsCategories");
+    try{
 
-    if (toolStat) toolStat.textContent = tools.length;
-    if (categoryStat) categoryStat.textContent = categories.length;
-    
-    // Update admin stats if visible
-    const adminStatsTools = document.getElementById('adminStatsTools');
-    if (adminStatsTools) {
-        adminStatsTools.textContent = tools.length;
+        const response = await fetch("/aimatrix/api/get_stats.php");
+
+        const result = await response.json();
+
+        if(result.success){
+
+            document.getElementById("statsTools").textContent =
+            result.tools;
+
+            document.getElementById("statsCategories").textContent =
+            result.categories;
+
+            document.getElementById("statsUsers").textContent =
+            result.users;
+
+        }
+
     }
+    catch(error){
+
+        console.error("Stats Error:",error);
+
+    }
+
+}
+
+function updateStatsDisplay(){
+
+    const adminStatsTools =
+    document.getElementById("adminStatsTools");
+
+    if(adminStatsTools){
+
+        adminStatsTools.textContent = tools.length;
+
+    }
+
 }
 
 // 9. STAR RATING FUNCTIONS
@@ -720,10 +883,17 @@ document.addEventListener('DOMContentLoaded', () => {
         toggleBookmark(parseInt(e.target.dataset.id));
 }
         
-        if (e.target.classList.contains('rate-tool-btn')) {
-    showToast('Ratings will be added later.', 'info');
+       if(e.target.classList.contains("rate-tool-btn")){
+
+    const toolId = e.target.dataset.id;
+
+    feedback.dataset.toolId = toolId;
+
+    loadReviews(toolId);
+
+    openModal("feedbackModal");
+
 }
-        
         if (e.target.classList.contains('open-tool-btn')) {
             const url = e.target.dataset.url;
             const canEmbed = e.target.dataset.embed === 'true';
@@ -739,25 +909,84 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
     });
-    
     // Feedback form
-    const feedback=document.getElementById("feedbackForm");
 
-if(feedback){
+    const feedback = document.getElementById("feedbackForm");
 
-feedback.addEventListener("submit",(e)=>{
+    if(feedback){
 
-e.preventDefault();
+    feedback.addEventListener("submit",async(e)=>{
 
-showToast("Feedback feature coming soon.","info");
+    e.preventDefault();
 
-closeModal("feedbackModal");
+    const toolId=parseInt(feedback.dataset.toolId);
 
-});
+    const rating=parseInt(document.getElementById("feedbackRating").value);
+
+    const review=document.getElementById("feedbackComment").value.trim();
+
+    if(!rating){
+
+    showToast("Please select a rating.","error");
+
+    return;
+
+    }
+
+    try{
+
+    const response=await fetch("/aimatrix/api/submit_feedback.php",{
+
+    method:"POST",
+
+    headers:{
+    "Content-Type":"application/json"
+    },
+
+    body:JSON.stringify({
+
+    tool_id:toolId,
+
+    rating:rating,
+
+    review:review
+
+    })
+
+    });
+
+    const result = await response.json();
+
+showToast(result.message);
+
+if(result.success){
+
+    loadReviews(toolId);
+
+    loadToolRating(toolId);
+
+    feedback.reset();
+
+    resetStarRating();
+
+    closeModal("feedbackModal");
+
+}}
+catch(error){
+
+    console.error(error);
+
+    showToast("Failed to submit review.","error");
 
 }
-    
-        const feedbackComment=document.getElementById("feedbackComment");
+
+    });
+
+}
+
+    // Character counter
+
+    const feedbackComment=document.getElementById("feedbackComment");
 
     if(feedbackComment){
 
@@ -775,7 +1004,7 @@ closeModal("feedbackModal");
 
     });
 
-}
+    }
     
     // Search and filters
     searchInput.addEventListener('input', applyFilters);
@@ -808,6 +1037,8 @@ async function init() {
         await loadTools();
 
         await loadBookmarks();
+
+        await loadStats();
 
         filteredTools = [...tools];
 
